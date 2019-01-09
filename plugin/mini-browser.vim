@@ -5,6 +5,7 @@ endif
 function! OpenMiniBrowser(bang, ...) abort
     let args = [0, 'mini-browser:open']
     if a:0 > 0
+      " append the rest of the command args?
         let args += [a:1]
     endif
     if a:bang

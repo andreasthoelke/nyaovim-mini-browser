@@ -11,18 +11,20 @@
         height: 100%;
         width: 100%;
         flex-direction: column;
-        font-family: Consolas,"Liberation Mono",Menlo,Courier,monospace;
+        font-size: 11px;
+        font-family: -apple-system,BlinkMacSystemFont,sans-serif;
       }
       #mini-browser-title-bar {
-        height: 24px;
+        height: 14px;
         width: 100%;
         flex: none;
         display: flex;
         flex-direction: row;
         text-align: center;
-        border-bottom: solid 1px dimgray;
-        color: dimgray;
-        background-color: #dddddd;
+        /* border-bottom: solid 1px dimgray; */
+        color: #555555;
+        /* font-size: 11px; */
+        background-color: #101010;
       }
       #mini-browser-view {
         flex: auto;
@@ -30,10 +32,11 @@
         width: 100%;
       }
       .browser-ui-button {
-        border: solid 1px;
-        border-radius: 4px;
+        /* border: solid 1px; */
+        /* border-radius: 4px; */
         margin: 2px;
-        padding: 4px;
+        padding: 2px;
+        /* background-color: #393839; */
         flex: none;
         min-width: 20px;
         font-size: 14px;
@@ -44,12 +47,11 @@
       }
       #mini-browser-title {
         flex: auto;
-        font-size: 16px;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
         margin: 0px 8px;
-        line-height: 24px;
+        line-height: 14px;
       }
     </style>
 
@@ -66,12 +68,21 @@
 </dom-module>
 
 <script>
+
+  // mini-browser (root component)
+  //   body       (wrapper for visible area - title-bar - browser area)
+  //     title-bar
+  //       buttons
+  //     view     (the webview/ browser)
+
 (function() {
   'use strict';
 
   Polymer({
+    // Extends the mini-browser Div
     is: 'mini-browser',
 
+    // just some default props?
     properties: {
       url: {
         type: String,
@@ -92,26 +103,49 @@
       editor: Object
     },
 
+    // The "main" function of the mini-browser component
     ready: function() {
-      this.body = this.$['mini-browser-body'];
-      this.browser = this.$['mini-browser-view'];
+      // Set body and title Component-global variables to Div elements
+      this.body       = this.$['mini-browser-body'];
       this.title_text = this.$['mini-browser-title'];
+      // This is a webview component
+      this.browser    = this.$['mini-browser-view'];
+
+      // {{{ 3 UI divs get 'onClick' event handlers registered. This simply call the webview methods/probs. 
       this.$['mini-browser-back-btn'].onclick = () => {
         this.browser.goBack();
       };
       this.$['mini-browser-forward-btn'].onclick = () => {
-        this.browser.goForward();
+        // this.browser.goForward();
+        console.log( 'clicked forward' );
+        console.log( 'Website title: ' + this.browser.getTitle());
       };
       this.$['mini-browser-close-btn'].onclick = () => {
         this.browser.src = '';
         this.close();
       };
+
+      // }}}
+
+      // mini-browser (root component)
+      //   body       (wrapper for visible area - title-bar - browser area)
+      //     title-bar
+      //       buttons
+      //     view / "browser"    (the webview/ browser)
+
+      // the body div container gets the width from the mini-browser props
       this.body.style.width = this.width + 'px';
+      // initialize two more webview props
       this.browser.useragent = this.useragent;
       this.browser.src = this.url;
+
+      // The webview allows to register event handlers
+      // and to access the loaded page content!
       this.browser.addEventListener('dom-ready', () => {
         this.title_text.textContent = this.browser.getTitle();
       });
+
+      // {{{ Handler for keystrokes while focus is on mini-browser and *not* in html fields
       this.body.addEventListener('keydown', e => {
         switch (String.fromCharCode(e.keyCode).toLowerCase()) {
           case 'j':
@@ -183,15 +217,23 @@
             break;
         }
       });
+
+        // }}}
+
       if (this.visible) {
         this.show();
       }
 
+      // The Nvim client
       this.client = this.editor.getClient();
+      // Provide a handler that switches on methodID strings
+      // Can respond to 'open' and 'close' method call/notifications from the client
       this.client.on('notification', (method, args) => {
         switch(method) {
           case 'mini-browser:open': {
+            // Args via args array
             if (typeof args[0] === 'string') {
+              // open or just show/send message to exsisting page? TODO test
               this.open(args[0], args[1] === undefined || args[1]);
             } else {
               this.show(args[0] === undefined || args[0]);
@@ -202,33 +244,72 @@
             this.close();
             break;
           }
+          case 'mini-browser:demo1': {
+            console.log('Demo1: ' + args[0]);
+            this.title_text.textContent = 'demo 1: ' + args[0];
+            break;
+          }
+
+          // Scrolling
+          case 'mini-browser:scrollup': {
+            // the tricky part: the webview can execute JS
+            this.browser.executeJavaScript(
+              `(function(){
+                // and this local JS can just refer to the local 'window' obj
+                  window.scrollBy(0, 100);
+                })()`);
+            break;
+          }
+          case 'mini-browser:scrolldown': {
+            this.browser.executeJavaScript(
+              `(function(){
+                  window.scrollBy(0, -100);
+                })()`);
+            break;
+          }
+
         }
       });
       this.client.subscribe('mini-browser:open');
       this.client.subscribe('mini-browser:close');
+      this.client.subscribe('mini-browser:demo1');
+      this.client.subscribe('mini-browser:scrollup');
+      this.client.subscribe('mini-browser:scrolldown');
+
+      // Neovim app (within nyaovim-app div), contains Process (incl Nvim client), Screen and Store
+      // nyaovim-app.editor can also be found in the Polymer editor property. Strange: when edit code around this property - vim crashes!
+      const editor = document.querySelector('nyaovim-app').editor;
+
     },
 
     show(focus) {
       if (!this.visible) {
+        // body div is activated
         this.body.style.display = 'flex';
+        // and the root component is made visible
         this.visible = true;
+        // editor now has to shrink
         this.editor.screen.checkShouldResize();
       }
       if (focus) {
+        // only optionally get the focus
         this.browser.focus();
       }
     },
 
     open(url, focus) {
+      // url is only updated on open? TODO
       this.browser.src = url;
       this.show(focus);
     },
 
     close() {
       if (this.visible) {
+        // three ways to invalidate/make invisible?
         this.browser.src = '';
         this.body.style.display = 'none';
         this.visible = false;
+        // resize and focus the editor
         this.editor.screen.checkShouldResize();
         this.editor.focus();
       }
