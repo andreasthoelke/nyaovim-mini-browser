@@ -12,10 +12,15 @@ function! OpenMiniBrowser(bang, ...) abort
         let args += [0]
     endif
     call call('rpcnotify', args)
+
+    let g:mini_browser_active = 1
 endfunction
 
 function! CloseMiniBrowser() abort
     call rpcnotify(0, 'mini-browser:close')
+    if exists( "g:mini_browser_active" )
+      unlet g:mini_browser_active
+    endif
 endfunction
 
 command! -nargs=* -bang MiniBrowser call OpenMiniBrowser(<bang>0, <f-args>)

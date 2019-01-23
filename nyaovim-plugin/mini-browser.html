@@ -98,7 +98,8 @@
       },
       useragent: {
         type: String,
-        value: 'Mozilla/5.0 (Linux; Android 4.4.4; Nexus 5 Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.114 Mobile Safari/537.36/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Gecko) Version/8.0 Mobile/12A4345d Safari/600.1.4'
+        // value: 'Mozilla/5.0 (Linux; Android 4.4.4; Nexus 5 Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.114 Mobile Safari/537.36/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Gecko) Version/8.0 Mobile/12A4345d Safari/600.1.4'
+        value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
       },
       editor: Object
     },
@@ -142,7 +143,7 @@
       // The webview allows to register event handlers
       // and to access the loaded page content!
       this.browser.addEventListener('dom-ready', () => {
-        this.title_text.textContent = this.browser.getTitle();
+      this.title_text.textContent = this.browser.getTitle();
       });
 
       // {{{ Handler for keystrokes while focus is on mini-browser and *not* in html fields
@@ -234,6 +235,7 @@
             // Args via args array
             if (typeof args[0] === 'string') {
               // open or just show/send message to exsisting page? TODO test
+              // args[1] specifies of browser should be focused
               this.open(args[0], args[1] === undefined || args[1]);
             } else {
               this.show(args[0] === undefined || args[0]);
@@ -250,35 +252,69 @@
             break;
           }
 
+          case 'mini-browser:devtoolsopen': {
+            webContents.openDevTools( { mode: 'undocked' } );
+            // browserWindow.openDevTools( { mode: 'undocked' } );
+            // browserWindow.openDevTools();
+            console.log('i got devtoolsopen message!');
+            // These are expandable in DevTools!
+            // console.log(remote);
+            // console.log(browserWindow);
+            // console.log(webContents);
+            // editor.focus();
+            // this still does not bring focus back to the editor
+            setTimeout( function() {
+              console.log('got the delayed event');
+              this.editor.focus();
+            }, 2000);
+            break;
+          }
+          case 'sometest2': {
+            editor.focus();
+            console.log('sometest2');
+            break;
+          }
+
           // Scrolling
-          case 'mini-browser:scrollup': {
+          case 'mini-browser:scrollBy': {
+            console.log('scrollBy: really? ' + args);
             // the tricky part: the webview can execute JS
             this.browser.executeJavaScript(
               `(function(){
                 // and this local JS can just refer to the local 'window' obj
-                  window.scrollBy(0, 100);
+                  window.scrollBy(${args[0]}, ${args[1]});
                 })()`);
             break;
           }
-          case 'mini-browser:scrolldown': {
+          case 'mini-browser:scrollTo': {
+            // the tricky part: the webview can execute JS
+            console.log('scroll To');
             this.browser.executeJavaScript(
               `(function(){
-                  window.scrollBy(0, -100);
+                window.scrollTo(${args[0]}, ${args[1]});
                 })()`);
             break;
           }
 
         }
       });
+
       this.client.subscribe('mini-browser:open');
       this.client.subscribe('mini-browser:close');
       this.client.subscribe('mini-browser:demo1');
-      this.client.subscribe('mini-browser:scrollup');
-      this.client.subscribe('mini-browser:scrolldown');
+      this.client.subscribe('sometest2');
+      this.client.subscribe('mini-browser:devtoolsopen');
+      this.client.subscribe('mini-browser:scrollBy');
+      this.client.subscribe('mini-browser:scrollTo');
 
       // Neovim app (within nyaovim-app div), contains Process (incl Nvim client), Screen and Store
       // nyaovim-app.editor can also be found in the Polymer editor property. Strange: when edit code around this property - vim crashes!
       const editor = document.querySelector('nyaovim-app').editor;
+      console.log( 'Got the editor? ' + editor );
+
+      const remote = require('electron').remote;
+      const browserWindow = remote.getCurrentWindow();
+      const webContents = remote.getCurrentWebContents();
 
     },
 
